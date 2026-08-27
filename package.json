@@ -1,0 +1,25 @@
+{
+  "name": "browser-api",
+  "version": "1.0.0",
+  "description": "Self-hosted Puppeteer browser automation API",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/auth.test.js tests/validation.test.js tests/errors.test.js tests/limiter.test.js tests/automation.test.js",
+    "check": "node --check src/server.js && node --check src/routes/health.js && node --check src/routes/test.js && node --check src/routes/submit.js && node --check src/config.js && node --check src/auth.js && node --check src/validation.js && node --check src/logger.js && node --check src/limiter.js && node --check src/browser.js && node --check src/proxy.js && node --check src/automation.js && node --check src/errors.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "p-limit": "^6.2.0",
+    "pino": "^9.6.0",
+    "puppeteer": "^25.8.0",
+    "zod": "^3.24.1"
+  }
+}
