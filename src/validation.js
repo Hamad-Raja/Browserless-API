@@ -41,7 +41,10 @@ export const PRODUCTION_SELECTOR_KEYS = Object.freeze({
 
 const nonEmptyString = z.string().trim().min(1);
 const nonEmptyUnmodifiedString = z.string().min(1);
+const optionalLeadName = nonEmptyString.optional();
 const optionalSelector = z.string().trim().min(1).optional();
+const optionalNullableSelector = z
+  .preprocess((value) => (value === null ? undefined : value), optionalSelector);
 const optionalGender = z.preprocess(
   (value) => (value === null ? undefined : value),
   z.string().trim().optional()
@@ -61,6 +64,9 @@ export const selectorsSchema = z
     age: optionalSelector,
     gender: optionalSelector,
     coverage: optionalSelector,
+    email: optionalNullableSelector,
+    address: optionalNullableSelector,
+    city: optionalNullableSelector,
     form: optionalSelector,
     tcpaCheckbox: optionalSelector,
     submitButton: optionalSelector
@@ -80,8 +86,10 @@ export const proxySchema = z
 
 export const leadSchema = z
   .object({
-    firstName: nonEmptyString,
-    lastName: nonEmptyString,
+    firstName: optionalLeadName,
+    lastName: optionalLeadName,
+    first_name: optionalLeadName,
+    last_name: optionalLeadName,
     phone: nonEmptyString,
     zip: nonEmptyString,
     state: nonEmptyString,
@@ -90,7 +98,35 @@ export const leadSchema = z
     gender: optionalGender,
     coverage: nonEmptyString
   })
-  .strict();
+  .strict()
+  .superRefine((lead, context) => {
+    if (!lead.first_name && !lead.firstName) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['firstName'],
+        message: 'Required'
+      });
+    }
+
+    if (!lead.last_name && !lead.lastName) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lastName'],
+        message: 'Required'
+      });
+    }
+  })
+  .transform((lead) => ({
+    firstName: lead.first_name ?? lead.firstName,
+    lastName: lead.last_name ?? lead.lastName,
+    phone: lead.phone,
+    zip: lead.zip,
+    state: lead.state,
+    beneficiary: lead.beneficiary,
+    age: lead.age,
+    gender: lead.gender,
+    coverage: lead.coverage
+  }));
 
 export const testRequestSchema = z
   .object({
@@ -108,9 +144,15 @@ export const submitRequestSchema = z
     selectors: selectorsSchema.optional().default({}),
     proxy: proxySchema,
     automationProfile: automationProfileSchema,
-    timeoutMs: z.coerce.number().int().min(1000).optional()
+    timeoutMs: z.coerce.number().int().min(1000).optional(),
+    timeout: z.coerce.number().int().min(1000).optional(),
+    isPrime: z.boolean().optional()
   })
-  .strict();
+  .strict()
+  .transform(({ timeout, ...payload }) => ({
+    ...payload,
+    timeoutMs: payload.timeoutMs ?? timeout
+  }));
 
 export function validateBody(schema) {
   return (req, res, next) => {

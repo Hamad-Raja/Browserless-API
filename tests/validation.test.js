@@ -64,6 +64,70 @@ test('selector normalization lets production snake_case win over camelCase alias
   assert.equal(selectors.lastName, '#production-last');
 });
 
+test('submit schema accepts exact Base44 callBrowserApi payload and normalizes automation fields', () => {
+  const password = 'pass_country-us_state-ohio_session-abcd1234';
+  const result = submitRequestSchema.safeParse({
+    targetUrl: 'https://finalexpenseaffordableplans.com/get-quote.html',
+    lead: {
+      first_name: 'John',
+      last_name: 'Doe',
+      phone: '5551234567',
+      zip: '44149',
+      state: 'Ohio',
+      beneficiary: 'Son',
+      age: '65',
+      gender: 'male',
+      coverage: '15000'
+    },
+    selectors: {
+      first_name: '#firstName',
+      last_name: '#lastName',
+      email: null,
+      phone: '#phone',
+      address: null,
+      city: null,
+      state: '#state',
+      zip: '#zip-code',
+      beneficiary: '#beneficiary',
+      age: '#age',
+      gender: '#gender',
+      coverage: '#coverage'
+    },
+    proxy: {
+      host: 'geo.iproyal.com',
+      port: 12321,
+      username: 'user',
+      password,
+      stateCode: 'OH',
+      stateName: 'Ohio'
+    },
+    isPrime: false,
+    timeout: 120000
+  });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.data.lead, {
+    firstName: 'John',
+    lastName: 'Doe',
+    phone: '5551234567',
+    zip: '44149',
+    state: 'Ohio',
+    beneficiary: 'Son',
+    age: '65',
+    gender: 'male',
+    coverage: '15000'
+  });
+  assert.equal(result.data.timeoutMs, 120000);
+  assert.equal(Object.hasOwn(result.data, 'timeout'), false);
+  assert.equal(result.data.isPrime, false);
+  assert.equal(result.data.proxy.password, password);
+
+  const selectors = mergeSelectors(result.data.selectors);
+  assert.equal(selectors.firstName, '#firstName');
+  assert.equal(selectors.lastName, '#lastName');
+  assert.equal(selectors.zip, '#zip-code');
+});
+
 test('submit payload without gender is valid', () => {
   const result = submitRequestSchema.safeParse({
     targetUrl: 'https://example.com/form',
