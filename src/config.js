@@ -16,6 +16,24 @@ function parseIntegerEnv(name, fallback, { min = 0, max = Number.MAX_SAFE_INTEGE
   return parsed;
 }
 
+function parseBooleanEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') {
+    return fallback;
+  }
+
+  const normalized = String(raw).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  throw new Error(`${name} must be a boolean`);
+}
+
 export function parseHostList(value) {
   return String(value ?? '')
     .split(',')
@@ -30,6 +48,7 @@ export const config = Object.freeze({
   apiKey: process.env.API_KEY ?? 'CHANGE_ME',
   maxConcurrentBrowsers: parseIntegerEnv('MAX_CONCURRENT_BROWSERS', 4, { min: 1, max: 32 }),
   maxQueuedRequests: parseIntegerEnv('MAX_QUEUED_REQUESTS', 20, { min: 0, max: 1000 }),
+  enableStealth: parseBooleanEnv('ENABLE_STEALTH', true),
   browserTimeoutMs: parseIntegerEnv('BROWSER_TIMEOUT_MS', 120000, { min: 1000 }),
   ipCheckTimeoutMs: parseIntegerEnv('IP_CHECK_TIMEOUT_MS', 10000, { min: 1000 }),
   targetNavigationTimeoutMs: parseIntegerEnv('TARGET_NAVIGATION_TIMEOUT_MS', 90000, { min: 1000 }),

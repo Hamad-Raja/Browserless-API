@@ -1,5 +1,10 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { config } from './config.js';
+
+if (config.enableStealth) {
+  puppeteer.use(StealthPlugin());
+}
 
 export async function launchBrowser(proxy, { timeoutMs = config.browserTimeoutMs } = {}) {
   const args = [];
