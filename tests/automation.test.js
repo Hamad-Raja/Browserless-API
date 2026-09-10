@@ -8,6 +8,7 @@ import {
   RETRY_TRUSTEDFORM_SELECTORS,
   captureSuccessNotDetectedDebug,
   checkTestExitIp,
+  confirmTrustedFormBeforeFields,
   createBrowserlessCompatibleData,
   createNetworkMonitor,
   createRetryBrowserData,
@@ -214,6 +215,108 @@ test('TrustedForm read captures Jornaya in the same browser evaluation', async (
       present: true,
       jornayaToken: 'leadid-123'
     });
+  } finally {
+    global.window = previousWindow;
+    global.document = previousDocument;
+  }
+});
+
+test('TrustedForm is confirmed before the pre-fill idle window starts', async () => {
+  const previousWindow = global.window;
+  const previousDocument = global.document;
+  const events = [];
+
+  try {
+    global.window = {
+      TrustedForm: {
+        certificate_url: 'https://cert.trustedform.com/example'
+      }
+    };
+    global.document = {
+      querySelector(selector) {
+        if (selector === 'input[name="leadid_token"]') {
+          return {
+            value: 'leadid-123'
+          };
+        }
+        return null;
+      }
+    };
+
+    const page = {
+      async evaluate(fn, args) {
+        events.push('trustedform-read');
+        return fn(args);
+      }
+    };
+
+    const before = Date.now();
+    const result = await confirmTrustedFormBeforeFields(
+      page,
+      {
+        trustedFormPollMaxMs: 1000,
+        trustedFormPollIntervalMs: 250
+      },
+      undefined,
+      undefined,
+      undefined,
+      {
+        idleMinMs: 0,
+        idleMaxMs: 0
+      }
+    );
+    const after = Date.now();
+
+    assert.equal(events[0], 'trustedform-read');
+    assert.equal(result.trustedForm.present, true);
+    assert.equal(result.trustedForm.certUrl, 'https://cert.trustedform.com/example');
+    assert.equal(result.trustedForm.jornayaToken, 'leadid-123');
+    assert.equal(result.trustedFormStart >= before, true);
+    assert.equal(result.trustedFormStart <= after, true);
+  } finally {
+    global.window = previousWindow;
+    global.document = previousDocument;
+  }
+});
+
+test('TrustedForm missing returns before the pre-fill idle window', async () => {
+  const previousWindow = global.window;
+  const previousDocument = global.document;
+  let reads = 0;
+
+  try {
+    global.window = {};
+    global.document = {
+      querySelector() {
+        return null;
+      }
+    };
+
+    const page = {
+      async evaluate(fn, args) {
+        reads++;
+        return fn(args);
+      }
+    };
+
+    const result = await confirmTrustedFormBeforeFields(
+      page,
+      {
+        trustedFormPollMaxMs: -1,
+        trustedFormPollIntervalMs: 250
+      },
+      undefined,
+      undefined,
+      undefined,
+      {
+        idleMinMs: 100,
+        idleMaxMs: 100
+      }
+    );
+
+    assert.equal(reads, 1);
+    assert.equal(result.trustedForm.present, false);
+    assert.equal(result.trustedFormStart, null);
   } finally {
     global.window = previousWindow;
     global.document = previousDocument;

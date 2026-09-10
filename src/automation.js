@@ -680,6 +680,38 @@ async function waitForTrustedForm(
   return readTrustedFormWithSelectors(page, trustedFormSelectors, jornayaSelectors);
 }
 
+export async function confirmTrustedFormBeforeFields(
+  page,
+  runtimeConfig,
+  signal,
+  trustedFormSelectors = PRIMARY_TRUSTEDFORM_SELECTORS,
+  jornayaSelectors = PRIMARY_JORNAYA_SELECTORS,
+  { idleMinMs = 2000, idleMaxMs = 4000 } = {}
+) {
+  const trustedForm = await waitForTrustedForm(
+    page,
+    runtimeConfig,
+    signal,
+    trustedFormSelectors,
+    jornayaSelectors
+  );
+
+  if (!trustedForm.present) {
+    return {
+      trustedForm,
+      trustedFormStart: null
+    };
+  }
+
+  const trustedFormStart = Date.now();
+  await pause(idleMinMs, idleMaxMs, signal);
+
+  return {
+    trustedForm,
+    trustedFormStart
+  };
+}
+
 async function ensureTcpaChecked(page, formSelector, selectors, signal) {
   const checkboxSelector = '#quoteForm input[type="checkbox"]';
 
@@ -1284,17 +1316,7 @@ async function runPrimarySubmitJob(payload, { runtimeConfig = config, log = unde
       partialData.finalUrl = page.url();
 
       await delay(2000, signal);
-      const trustedFormStart = Date.now();
-
-      await fillLeadFields(page, selectors, payload.lead, signal);
-      partialData.fieldValues = await readFieldValues(page, selectors, FIELD_NAMES);
-      await pause(3000, 5000, signal);
-      await injectIpAddress(page, partialData.ipAddress);
-
-      const trustedFormElapsed = Date.now() - trustedFormStart;
-      await delay(Math.max(0, runtimeConfig.trustedFormMinimumMs - trustedFormElapsed), signal);
-
-      const trustedForm = await waitForTrustedForm(page, runtimeConfig, signal);
+      const { trustedForm, trustedFormStart } = await confirmTrustedFormBeforeFields(page, runtimeConfig, signal);
       partialData.trustedform_token = trustedForm.certUrl;
       partialData.trustedform_present = trustedForm.present;
       partialData.jornayaToken = trustedForm.jornayaToken;
@@ -1310,6 +1332,14 @@ async function runPrimarySubmitJob(payload, { runtimeConfig = config, log = unde
           finalUrl: safePageUrl(page)
         });
       }
+
+      await fillLeadFields(page, selectors, payload.lead, signal);
+      partialData.fieldValues = await readFieldValues(page, selectors, FIELD_NAMES);
+      await pause(3000, 5000, signal);
+      await injectIpAddress(page, partialData.ipAddress);
+
+      const trustedFormElapsed = Date.now() - trustedFormStart;
+      await delay(Math.max(0, runtimeConfig.trustedFormMinimumMs - trustedFormElapsed), signal);
 
       await ensureTcpaChecked(page, formSelector, selectors, signal);
       monitor = createNetworkMonitor(page);
@@ -1450,17 +1480,7 @@ async function runRetrySubmitJob(payload, { runtimeConfig = config, log = undefi
       }
 
       await delay(2000, signal);
-      const trustedFormStart = Date.now();
-
-      await fillLeadFields(page, selectors, payload.lead, signal);
-      const fieldValues = await readFieldValues(page, selectors, FIELD_NAMES);
-      await pause(3000, 5000, signal);
-      await injectIpAddress(page, partialData.ipAddress, profile.hiddenIpSelectors);
-
-      const trustedFormElapsed = Date.now() - trustedFormStart;
-      await delay(Math.max(0, runtimeConfig.trustedFormMinimumMs - trustedFormElapsed), signal);
-
-      const trustedForm = await waitForTrustedForm(
+      const { trustedForm, trustedFormStart } = await confirmTrustedFormBeforeFields(
         page,
         runtimeConfig,
         signal,
@@ -1476,11 +1496,19 @@ async function runRetrySubmitJob(payload, { runtimeConfig = config, log = undefi
           error: 'TrustedForm not generated',
           failure_category: 'trustedform_missing',
           ipAddress: partialData.ipAddress,
-          fieldValues,
+          fieldValues: {},
           trustedform_token: trustedForm.jornayaToken || '',
           trustedform_present: false
         };
       }
+
+      await fillLeadFields(page, selectors, payload.lead, signal);
+      const fieldValues = await readFieldValues(page, selectors, FIELD_NAMES);
+      await pause(3000, 5000, signal);
+      await injectIpAddress(page, partialData.ipAddress, profile.hiddenIpSelectors);
+
+      const trustedFormElapsed = Date.now() - trustedFormStart;
+      await delay(Math.max(0, runtimeConfig.trustedFormMinimumMs - trustedFormElapsed), signal);
 
       await ensureTcpaChecked(page, PRODUCTION_FORM_SELECTOR, selectors, signal);
       monitor = createRetryNetworkMonitor(page);
