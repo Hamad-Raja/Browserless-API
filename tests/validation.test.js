@@ -102,6 +102,8 @@ test('submit schema accepts exact Base44 callBrowserApi payload and normalizes a
       stateName: 'Ohio'
     },
     isPrime: false,
+    agentLeadId: 'lead-123',
+    attemptId: 'attempt-123',
     timeout: 120000
   });
 
@@ -120,6 +122,8 @@ test('submit schema accepts exact Base44 callBrowserApi payload and normalizes a
   assert.equal(result.data.timeoutMs, 120000);
   assert.equal(Object.hasOwn(result.data, 'timeout'), false);
   assert.equal(result.data.isPrime, false);
+  assert.equal(result.data.agentLeadId, 'lead-123');
+  assert.equal(result.data.attemptId, 'attempt-123');
   assert.equal(result.data.proxy.password, password);
 
   const selectors = mergeSelectors(result.data.selectors);

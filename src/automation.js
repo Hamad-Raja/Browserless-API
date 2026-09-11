@@ -1281,7 +1281,12 @@ function createRetryNetworkMonitor(page) {
   };
 }
 
-async function runPrimarySubmitJob(payload, { runtimeConfig = config, log = undefined, startedAt = Date.now() } = {}) {
+async function runPrimarySubmitJob(payload, {
+  runtimeConfig = config,
+  log = undefined,
+  startedAt = Date.now(),
+  onBrowserLaunchStart = undefined
+} = {}) {
   let browser;
   let page;
   const selectors = mergeSelectors(payload.selectors);
@@ -1292,6 +1297,7 @@ async function runPrimarySubmitJob(payload, { runtimeConfig = config, log = unde
 
   try {
     const data = await withHardTimeout(async (signal) => {
+      onBrowserLaunchStart?.();
       browser = await launchBrowser(payload.proxy, { timeoutMs });
       page = await setupPage(browser, payload.proxy, timeoutMs);
 
@@ -1442,7 +1448,12 @@ async function runPrimarySubmitJob(payload, { runtimeConfig = config, log = unde
   }
 }
 
-async function runRetrySubmitJob(payload, { runtimeConfig = config, log = undefined, startedAt = Date.now() } = {}) {
+async function runRetrySubmitJob(payload, {
+  runtimeConfig = config,
+  log = undefined,
+  startedAt = Date.now(),
+  onBrowserLaunchStart = undefined
+} = {}) {
   let browser;
   let page;
   const profile = getAutomationProfileSpec('retry', { runtimeConfig });
@@ -1461,6 +1472,7 @@ async function runRetrySubmitJob(payload, { runtimeConfig = config, log = undefi
 
   try {
     const data = await withHardTimeout(async (signal) => {
+      onBrowserLaunchStart?.();
       browser = await launchBrowser(payload.proxy, { timeoutMs });
       page = await setupPage(browser, payload.proxy, timeoutMs);
 

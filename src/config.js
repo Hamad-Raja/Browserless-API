@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import path from 'node:path';
 
 dotenv.config();
 
@@ -48,6 +49,13 @@ export const config = Object.freeze({
   apiKey: process.env.API_KEY ?? 'CHANGE_ME',
   maxConcurrentBrowsers: parseIntegerEnv('MAX_CONCURRENT_BROWSERS', 4, { min: 1, max: 32 }),
   maxQueuedRequests: parseIntegerEnv('MAX_QUEUED_REQUESTS', 20, { min: 0, max: 1000 }),
+  idempotencyDbPath: process.env.IDEMPOTENCY_DB_PATH ?? (
+    (process.env.NODE_ENV ?? 'development') === 'production'
+      ? '/app/data/idempotency.db'
+      : path.resolve(process.cwd(), 'data', 'idempotency.db')
+  ),
+  idempotencyTtlDays: parseIntegerEnv('IDEMPOTENCY_TTL_DAYS', 14, { min: 7, max: 365 }),
+  idempotencyStaleProcessingMs: parseIntegerEnv('IDEMPOTENCY_STALE_PROCESSING_MS', 180000, { min: 1000 }),
   enableStealth: parseBooleanEnv('ENABLE_STEALTH', true),
   browserTimeoutMs: parseIntegerEnv('BROWSER_TIMEOUT_MS', 120000, { min: 1000 }),
   ipCheckTimeoutMs: parseIntegerEnv('IP_CHECK_TIMEOUT_MS', 10000, { min: 1000 }),

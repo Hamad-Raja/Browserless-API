@@ -146,7 +146,9 @@ export const submitRequestSchema = z
     automationProfile: automationProfileSchema,
     timeoutMs: z.coerce.number().int().min(1000).optional(),
     timeout: z.coerce.number().int().min(1000).optional(),
-    isPrime: z.boolean().optional()
+    isPrime: z.boolean().optional(),
+    agentLeadId: z.string().trim().min(1).max(200).optional(),
+    attemptId: z.string().trim().min(1).max(200).optional()
   })
   .strict()
   .transform(({ timeout, ...payload }) => ({

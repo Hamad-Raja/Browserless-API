@@ -3,6 +3,8 @@ FROM node:22-bookworm-slim AS production
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
+    NODE_OPTIONS=--experimental-sqlite \
+    IDEMPOTENCY_DB_PATH=/app/data/idempotency.db \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     PUPPETEER_SKIP_DOWNLOAD=true \
     PUPPETEER_NO_SANDBOX=true \
@@ -43,6 +45,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 USER node
 
