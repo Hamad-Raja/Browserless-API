@@ -49,6 +49,24 @@ test('GET /health is public and does not launch a browser', async (t) => {
   assert.equal(typeof body.memory.rssBytes, 'number');
 });
 
+test('Express trusts one proxy hop for Nginx forwarded headers', async (t) => {
+  const app = createApp();
+  assert.equal(app.get('trust proxy'), 1);
+
+  const { server, baseUrl } = await listen(app);
+  t.after(() => closeServer(server));
+
+  const response = await fetch(`${baseUrl}/health`, {
+    headers: {
+      'x-forwarded-for': '203.0.113.10'
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.success, true);
+});
+
 test('health response reports full browser capacity without exposing secrets', () => {
   const body = buildHealthResponse({
     limiterState: {

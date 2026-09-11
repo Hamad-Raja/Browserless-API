@@ -61,14 +61,22 @@ export function classifyBrowserError(error) {
     return 'timeout';
   }
 
+  if (message.includes('err_tunnel_connection_failed')) {
+    return 'proxy_tunnel_failed';
+  }
+
   if (
-    message.includes('err_tunnel_connection_failed') ||
-    message.includes('err_proxy_connection_failed') ||
     message.includes('407 proxy authentication required') ||
-    message.includes('proxy authentication') ||
+    message.includes('proxy authentication')
+  ) {
+    return 'proxy_authentication_failed';
+  }
+
+  if (
+    message.includes('err_proxy_connection_failed') ||
     message.includes('net::err_no_supported_proxies')
   ) {
-    return 'proxy_forbidden';
+    return 'proxy_connection_failed';
   }
 
   if (

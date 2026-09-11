@@ -2,10 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BrowserJobError, HardTimeoutError, classifyBrowserError, sanitizeErrorMessage } from '../src/errors.js';
 import { REDACT_PATHS } from '../src/logger.js';
+import { assertAllowedProxyHost } from '../src/validation.js';
 
-test('error classifier maps proxy failures', () => {
-  assert.equal(classifyBrowserError(new Error('net::ERR_PROXY_CONNECTION_FAILED')), 'proxy_forbidden');
-  assert.equal(classifyBrowserError(new Error('407 Proxy Authentication Required')), 'proxy_forbidden');
+test('error classifier maps runtime proxy failures without using allowlist names', () => {
+  assert.equal(classifyBrowserError(new Error('net::ERR_TUNNEL_CONNECTION_FAILED')), 'proxy_tunnel_failed');
+  assert.equal(classifyBrowserError(new Error('net::ERR_PROXY_CONNECTION_FAILED')), 'proxy_connection_failed');
+  assert.equal(classifyBrowserError(new Error('407 Proxy Authentication Required')), 'proxy_authentication_failed');
+  assert.equal(classifyBrowserError(new Error('Proxy authentication failed')), 'proxy_authentication_failed');
+  assert.equal(classifyBrowserError(new Error('net::ERR_NO_SUPPORTED_PROXIES')), 'proxy_connection_failed');
+});
+
+test('proxy allowlist rejection remains distinct from runtime proxy failures', () => {
+  assert.throws(
+    () =>
+      assertAllowedProxyHost(
+        {
+          host: 'proxy.attacker.test',
+          port: 8080,
+          username: 'user',
+          password: 'pass'
+        },
+        ['geo.iproyal.com']
+      ),
+    {
+      code: 'proxy_host_not_allowed'
+    }
+  );
 });
 
 test('error classifier maps timeout failures', () => {

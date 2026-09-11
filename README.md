@@ -229,7 +229,9 @@ Supported browser failure categories:
 - `trustedform_missing`
 - `form_submission`
 - `success_not_detected`
-- `proxy_forbidden`
+- `proxy_authentication_failed`
+- `proxy_connection_failed`
+- `proxy_tunnel_failed`
 - `target_site_forbidden`
 - `timeout`
 
