@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { config } from '../src/config.js';
 import { buildHealthResponse } from '../src/routes/health.js';
-import { createApp } from '../src/server.js';
+import { createApp, installShutdownHandlers } from '../src/server.js';
 
 function listen(app) {
   return new Promise((resolve) => {
@@ -67,6 +68,23 @@ test('Express trusts one proxy hop for Nginx forwarded headers', async (t) => {
   assert.equal(body.success, true);
 });
 
+test('startup shutdown handlers are not registered repeatedly', () => {
+  const processRef = new EventEmitter();
+  processRef.exit = () => {};
+  const server = {
+    close(callback) {
+      callback();
+    }
+  };
+
+  assert.equal(installShutdownHandlers(server, { processRef }), true);
+  assert.equal(installShutdownHandlers(server, { processRef }), false);
+  assert.equal(processRef.listenerCount('SIGTERM'), 1);
+  assert.equal(processRef.listenerCount('SIGINT'), 1);
+  assert.equal(processRef.listenerCount('uncaughtException'), 1);
+  assert.equal(processRef.listenerCount('unhandledRejection'), 1);
+});
+
 test('health response reports full browser capacity without exposing secrets', () => {
   const body = buildHealthResponse({
     limiterState: {
@@ -74,6 +92,11 @@ test('health response reports full browser capacity without exposing secrets', (
       queuedRequests: 3,
       maxConcurrentBrowsers: 2,
       maxQueuedRequests: 3
+    },
+    browserRuntimeState: {
+      activeTrackedBrowsers: 2,
+      activeBrowserPids: [101, 102],
+      oldestBrowserAgeMs: 5000
     },
     now: new Date('2026-08-28T00:00:00.000Z'),
     uptimeSeconds: 42,
@@ -89,6 +112,9 @@ test('health response reports full browser capacity without exposing secrets', (
   assert.equal(body.checks.browserCapacity, 'full');
   assert.equal(body.capacity.browserCapacityAvailable, false);
   assert.equal(body.capacity.remainingQueueSlots, 0);
+  assert.equal(body.activeTrackedBrowsers, 2);
+  assert.deepEqual(body.browserRuntime.activeBrowserPids, [101, 102]);
+  assert.equal(body.browserRuntime.oldestBrowserAgeMs, 5000);
   assert.equal(JSON.stringify(body).includes('API_KEY'), false);
   assert.equal(JSON.stringify(body).includes('password'), false);
 });

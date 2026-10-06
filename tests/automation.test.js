@@ -23,7 +23,12 @@ import {
   waitForSuccessSignal,
   withHardTimeout
 } from '../src/automation.js';
-import { safeCloseBrowser } from '../src/browser.js';
+import {
+  closeActiveBrowsers,
+  getBrowserRuntimeState,
+  safeCloseBrowser,
+  trackBrowser
+} from '../src/browser.js';
 import { HardTimeoutError } from '../src/errors.js';
 import { authenticateProxy, checkExitIp } from '../src/proxy.js';
 import { mergeSelectors } from '../src/validation.js';
@@ -527,6 +532,214 @@ test('browser lifecycle close helper closes the browser', async () => {
 
   assert.equal(await safeCloseBrowser(browser), true);
   assert.equal(closeCalls, 1);
+});
+
+test('browser lifecycle close helper falls back when browser.close throws', async () => {
+  let killedSignal = null;
+  const browserProcess = {
+    pid: 22334,
+    killed: false,
+    kill(signal) {
+      killedSignal = signal;
+      this.killed = true;
+      return true;
+    }
+  };
+  const browser = {
+    process() {
+      return browserProcess;
+    },
+    async close() {
+      throw new Error('close failed');
+    }
+  };
+
+  trackBrowser(browser, { jobId: 'close-throws-test' });
+
+  assert.equal(await safeCloseBrowser(browser), false);
+  assert.equal(killedSignal, 'SIGKILL');
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 0);
+});
+
+test('browser lifecycle close helper force kills only the tracked Chromium process on close timeout', async () => {
+  let killedSignal = null;
+  const browserProcess = {
+    pid: 12345,
+    killed: false,
+    kill(signal) {
+      killedSignal = signal;
+      this.killed = true;
+      return true;
+    }
+  };
+  const browser = {
+    process() {
+      return browserProcess;
+    },
+    close() {
+      return new Promise(() => {});
+    }
+  };
+
+  assert.equal(await safeCloseBrowser(browser, undefined, { timeoutMs: 1 }), false);
+  assert.equal(killedSignal, 'SIGKILL');
+});
+
+test('safeCloseBrowser is idempotent when called twice for one browser', async () => {
+  let closeCalls = 0;
+  let resolveClose;
+  const browser = {
+    close() {
+      closeCalls++;
+      return new Promise((resolve) => {
+        resolveClose = resolve;
+      });
+    }
+  };
+
+  trackBrowser(browser, { jobId: 'double-close-test' });
+
+  const firstClose = safeCloseBrowser(browser);
+  const secondClose = safeCloseBrowser(browser);
+  resolveClose();
+
+  assert.equal(await firstClose, true);
+  assert.equal(await secondClose, true);
+  assert.equal(closeCalls, 1);
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 0);
+});
+
+test('browser disconnected event removes browser from active tracking', () => {
+  const handlers = {};
+  const browser = {
+    on(event, handler) {
+      handlers[event] = handler;
+    }
+  };
+
+  trackBrowser(browser, { jobId: 'disconnect-test' });
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 1);
+
+  handlers.disconnected();
+
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 0);
+});
+
+test('closeActiveBrowsers closes a snapshot of multiple tracked browsers', async () => {
+  let firstClosed = false;
+  let secondClosed = false;
+  const firstBrowser = {
+    async close() {
+      firstClosed = true;
+    }
+  };
+  const secondBrowser = {
+    async close() {
+      secondClosed = true;
+    }
+  };
+
+  trackBrowser(firstBrowser, { jobId: 'shutdown-one' });
+  trackBrowser(secondBrowser, { jobId: 'shutdown-two' });
+
+  assert.equal(await closeActiveBrowsers(), 2);
+  assert.equal(firstClosed, true);
+  assert.equal(secondClosed, true);
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 0);
+});
+
+test('one browser cleanup does not kill another tracked browser process', async () => {
+  const killedPids = [];
+  const hungBrowser = {
+    process() {
+      return {
+        pid: 301,
+        killed: false,
+        kill(signal) {
+          killedPids.push({ pid: this.pid, signal });
+          this.killed = true;
+        }
+      };
+    },
+    close() {
+      return new Promise(() => {});
+    }
+  };
+  const healthyBrowser = {
+    process() {
+      return {
+        pid: 302,
+        killed: false,
+        kill(signal) {
+          killedPids.push({ pid: this.pid, signal });
+          this.killed = true;
+        }
+      };
+    },
+    async close() {}
+  };
+
+  trackBrowser(hungBrowser, { jobId: 'hung-browser' });
+  trackBrowser(healthyBrowser, { jobId: 'healthy-browser' });
+
+  assert.equal(await safeCloseBrowser(hungBrowser, undefined, { timeoutMs: 1 }), false);
+  assert.deepEqual(killedPids, [{ pid: 301, signal: 'SIGKILL' }]);
+
+  await safeCloseBrowser(healthyBrowser);
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 0);
+});
+
+test('browser cleanup still runs when job work throws', async () => {
+  let closed = false;
+  const browser = {
+    async close() {
+      closed = true;
+    }
+  };
+
+  trackBrowser(browser, { jobId: 'throwing-job' });
+
+  await assert.rejects(async () => {
+    try {
+      throw new Error('job failed');
+    } finally {
+      await safeCloseBrowser(browser);
+    }
+  }, /job failed/);
+
+  assert.equal(closed, true);
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 0);
+});
+
+test('hard timeout path can close the tracked browser', async () => {
+  let closed = false;
+  const browser = {
+    async close() {
+      closed = true;
+    }
+  };
+
+  trackBrowser(browser, { jobId: 'timeout-cleanup' });
+
+  await assert.rejects(
+    () =>
+      withHardTimeout(async (signal) => {
+        await delay(100, signal);
+      }, 10, () => {
+        void safeCloseBrowser(browser);
+      }),
+    HardTimeoutError
+  );
+
+  assert.equal(closed, true);
+  assert.equal(getBrowserRuntimeState().activeTrackedBrowsers, 0);
+});
+
+test('browser runtime state reports no leaked tracked browsers after mocked cleanup', () => {
+  const state = getBrowserRuntimeState();
+
+  assert.equal(state.activeTrackedBrowsers, 0);
+  assert.deepEqual(state.activeBrowserPids, []);
 });
 
 test('success detection checks complete POST body before response truncation', async () => {

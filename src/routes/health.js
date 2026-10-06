@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { config } from '../config.js';
+import { getBrowserRuntimeState } from '../browser.js';
 import { browserLimiter } from '../limiter.js';
 
 export const healthRouter = Router();
 
 export function buildHealthResponse({
   limiterState = browserLimiter.getState(),
+  browserRuntimeState = getBrowserRuntimeState(),
   now = new Date(),
   uptimeSeconds = Math.floor(process.uptime()),
   memoryUsage = process.memoryUsage()
@@ -23,6 +25,7 @@ export function buildHealthResponse({
     nodeVersion: process.version,
     uptimeSeconds,
     activeBrowsers: limiterState.activeBrowsers,
+    activeTrackedBrowsers: browserRuntimeState.activeTrackedBrowsers,
     queuedRequests: limiterState.queuedRequests,
     maxConcurrentBrowsers: limiterState.maxConcurrentBrowsers,
     maxQueuedRequests: limiterState.maxQueuedRequests,
@@ -33,10 +36,16 @@ export function buildHealthResponse({
     capacity: {
       browserCapacityAvailable,
       activeBrowsers: limiterState.activeBrowsers,
+      activeTrackedBrowsers: browserRuntimeState.activeTrackedBrowsers,
       queuedRequests: limiterState.queuedRequests,
       maxConcurrentBrowsers: limiterState.maxConcurrentBrowsers,
       maxQueuedRequests: limiterState.maxQueuedRequests,
       remainingQueueSlots
+    },
+    browserRuntime: {
+      activeTrackedBrowsers: browserRuntimeState.activeTrackedBrowsers,
+      activeBrowserPids: browserRuntimeState.activeBrowserPids,
+      oldestBrowserAgeMs: browserRuntimeState.oldestBrowserAgeMs
     },
     memory: {
       rssBytes: memoryUsage.rss,

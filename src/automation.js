@@ -1186,7 +1186,11 @@ export async function runTestJob(payload, { runtimeConfig = config, log = undefi
 
   try {
     return await withHardTimeout(async (signal) => {
-      browser = await launchBrowser(payload.proxy, { timeoutMs: runtimeConfig.browserTimeoutMs });
+      browser = await launchBrowser(payload.proxy, {
+        timeoutMs: runtimeConfig.browserTimeoutMs,
+        jobId: payload.requestId,
+        log
+      });
       page = await setupPage(browser, payload.proxy, runtimeConfig.browserTimeoutMs);
       const ipCheck = await checkTestExitIp(page);
       partialData.ipAddress = ipCheck.ipAddress;
@@ -1298,7 +1302,11 @@ async function runPrimarySubmitJob(payload, {
   try {
     const data = await withHardTimeout(async (signal) => {
       onBrowserLaunchStart?.();
-      browser = await launchBrowser(payload.proxy, { timeoutMs });
+      browser = await launchBrowser(payload.proxy, {
+        timeoutMs,
+        jobId: payload.attemptId ?? payload.requestId,
+        log
+      });
       page = await setupPage(browser, payload.proxy, timeoutMs);
 
       partialData.ipAddress = await checkExitIp(page, { timeoutMs: runtimeConfig.ipCheckTimeoutMs });
@@ -1473,7 +1481,11 @@ async function runRetrySubmitJob(payload, {
   try {
     const data = await withHardTimeout(async (signal) => {
       onBrowserLaunchStart?.();
-      browser = await launchBrowser(payload.proxy, { timeoutMs });
+      browser = await launchBrowser(payload.proxy, {
+        timeoutMs,
+        jobId: payload.attemptId ?? payload.requestId,
+        log
+      });
       page = await setupPage(browser, payload.proxy, timeoutMs);
 
       partialData.ipAddress = await checkExitIp(page, { timeoutMs: 10000 });
