@@ -390,74 +390,21 @@ export function createNetworkMonitor(page) {
   };
 }
 
-// async function navigateToTarget(page, targetUrl, runtimeConfig) {
-//   const response = await page.goto(targetUrl, {
-//     waitUntil: 'domcontentloaded',
-//     timeout: runtimeConfig.targetNavigationTimeoutMs
-//   });
-
-//   const status = response?.status();
-//   if (status === 401 || status === 403) {
-//     throw new TargetSiteForbiddenError(status);
-//   }
-
-//   return response;
-// }
-
 async function navigateToTarget(page, targetUrl, runtimeConfig) {
-  const hostname = new URL(targetUrl).hostname.toLowerCase();
-  const isAdranko =
-    hostname === 'einsuranceforall.com' ||
-    hostname.endsWith('.einsuranceforall.com');
+  const response = await page.goto(targetUrl, {
+    waitUntil: 'domcontentloaded',
+    timeout: runtimeConfig.targetNavigationTimeoutMs
+  });
 
-  const timeoutMs = isAdranko
-    ? 45000
-    : runtimeConfig.targetNavigationTimeoutMs;
-
-  const maxAttempts = isAdranko ? 2 : 1;
-
-  let lastError;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const response = await page.goto(targetUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: timeoutMs
-      });
-
-      const status = response?.status();
-
-      if (status === 401 || status === 403) {
-        throw new TargetSiteForbiddenError(status);
-      }
-
-      const finalHostname = new URL(page.url()).hostname.toLowerCase();
-
-      if (
-        isAdranko &&
-        finalHostname !== 'einsuranceforall.com' &&
-        !finalHostname.endsWith('.einsuranceforall.com')
-      ) {
-        throw new Error(
-          `Adranko target navigation did not reach target; final URL: ${page.url()}`
-        );
-      }
-
-      return response;
-    } catch (error) {
-      lastError = error;
-
-      if (attempt >= maxAttempts) {
-        throw error;
-      }
-
-      // Small delay before one internal navigation retry.
-      await sleep(1000);
-    }
+  const status = response?.status();
+  if (status === 401 || status === 403) {
+    throw new TargetSiteForbiddenError(status);
   }
 
-  throw lastError;
+  return response;
 }
+
+
 
 async function waitForForm(page, selectors, runtimeConfig) {
   const formSelector = PRODUCTION_FORM_SELECTOR;
